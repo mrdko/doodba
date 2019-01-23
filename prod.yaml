@@ -1,0 +1,72 @@
+version: "2.1"
+services:
+    odoo:
+        extends:
+            file: common.yaml
+            service: odoo
+        restart: unless-stopped
+        environment:
+            INITIAL_LANG: "$INITIAL_LANG"
+        volumes:
+            - ./odoo/custom:/opt/odoo/custom:ro,z
+            - ./odoo/auto/addons:/opt/odoo/auto/addons:rw,z
+        depends_on:
+            - db
+            - smtp
+        networks:
+            default:
+            inverseproxy_shared:
+        labels:
+            traefik.dbmanager.frontend.auth.basic:
+                "${DB_USER}:${ODOO_ADMIN_PASSWORD_BCRYPT}"
+            traefik.dbmanager.frontend.rule:
+                "Host:${DOMAIN_PROD};PathPrefix:/web/database/"
+            traefik.dbselector.frontend.rule:
+                "Host:${DOMAIN_PROD};PathPrefix:/web/database/{p:selector|list}"
+            traefik.longpolling.frontend.rule:
+                "Host:${DOMAIN_PROD};PathPrefix:/longpolling/"
+            traefik.websiteinfo.frontend.auth.basic:
+                "${DB_USER}:${ODOO_ADMIN_PASSWORD_BCRYPT}"
+            traefik.websiteinfo.frontend.rule:
+                "Host:${DOMAIN_PROD};Path:/website/info"
+            traefik.www.frontend.rule: "Host:${DOMAIN_PROD}"
+            traefik.alt.frontend.rule: "Host:${DOMAIN_PROD_ALT}"
+            traefik.alt.frontend.redirect.regex:
+                "^(.*)://${DOMAIN_PROD_ALT}/(.*)$$"
+            traefik.alt.frontend.redirect.replacement:
+                "$$1://${DOMAIN_PROD}/$$2"
+
+    db:
+        extends:
+            file: common.yaml
+            service: db
+        restart: unless-stopped
+
+    smtp:
+        extends:
+            file: common.yaml
+            service: smtpreal
+        restart: unless-stopped
+
+    backup:
+        extends:
+            file: common.yaml
+            service: backup
+        restart: unless-stopped
+        depends_on:
+            - db
+            - smtp
+
+networks:
+    default:
+        driver_opts:
+            encrypted: 1
+
+    inverseproxy_shared:
+        external: true
+
+volumes:
+    backup_cache:
+    filestore:
+    db:
+    smtp:
